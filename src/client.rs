@@ -221,6 +221,91 @@ impl JellyfinClient {
         Ok(items)
     }
 
+    pub async fn get_resume_items(&self, limit: u32) -> Result<ItemsResponse> {
+        let user_id = self
+            .user_id
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?;
+
+        let url = format!(
+            "{}/Users/{}/Items/Resume?Limit={}&Recursive=true&Fields=PrimaryImageAspectRatio,BasicSyncInfo,ProductionYear,Status,EndDate&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Banner,Thumb",
+            self.server_url, user_id, limit
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("X-Emby-Authorization", self.auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            anyhow::bail!("Failed to fetch resume items: {} - {}", status, body);
+        }
+
+        let items: ItemsResponse = response.json().await?;
+        Ok(items)
+    }
+
+    pub async fn get_next_up_items(&self, limit: u32) -> Result<ItemsResponse> {
+        let user_id = self
+            .user_id
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?;
+
+        let url = format!(
+            "{}/Shows/NextUp?UserId={}&Limit={}&Fields=PrimaryImageAspectRatio,SeriesInfo,DateCreated,BasicSyncInfo,MediaSourceCount&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Banner,Thumb",
+            self.server_url, user_id, limit
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("X-Emby-Authorization", self.auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            anyhow::bail!("Failed to fetch next up items: {} - {}", status, body);
+        }
+
+        let items: ItemsResponse = response.json().await?;
+        Ok(items)
+    }
+
+    pub async fn get_latest_items(&self, item_types: &[&str], limit: u32) -> Result<ItemsResponse> {
+        let user_id = self
+            .user_id
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?;
+
+        let types = item_types.join(",");
+        let url = format!(
+            "{}/Users/{}/Items?IncludeItemTypes={}&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit={}&Fields=PrimaryImageAspectRatio,ProductionYear,Status,EndDate&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Banner,Thumb",
+            self.server_url, user_id, types, limit
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("X-Emby-Authorization", self.auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            anyhow::bail!("Failed to fetch latest items: {} - {}", status, body);
+        }
+
+        let items: ItemsResponse = response.json().await?;
+        Ok(items)
+    }
+
     pub async fn get_item(&self, item_id: &str) -> Result<MediaItem> {
         let user_id = self
             .user_id

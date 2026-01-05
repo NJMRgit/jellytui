@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
     let mut events = EventHandler::new(Duration::from_millis(250));
 
     if app.screen == Screen::Home {
-        let _ = app.load_libraries().await;
+        let _ = app.load_home_content().await;
     }
 
     let result = run_app(&mut terminal, &mut app, &mut events).await;
@@ -173,7 +173,7 @@ async fn handle_browser_input(
         }
         KeyCode::Char('r') => match app.screen {
             Screen::Home => {
-                let _ = app.load_libraries().await;
+                let _ = app.load_home_content().await;
             }
             Screen::Library => {
                 if let Some(entry) = app.nav_stack.last() {

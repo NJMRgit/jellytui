@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{App, LoginField, Screen};
+use crate::app::{App, HomeDisplayItem, LoginField, Screen};
 use crate::client::MediaItem;
 use crate::download::DownloadStatus;
 
@@ -111,28 +111,64 @@ fn render_browser(frame: &mut Frame, app: &App) {
             .block(block);
         frame.render_widget(error_text, chunks[0]);
     } else {
-        let items: Vec<MediaItem> = match app.screen {
-            Screen::Home => app.libraries.clone(),
-            Screen::Library => app.items.clone(),
+        let list_items: Vec<ListItem> = match app.screen {
+            Screen::Home => app
+                .home_items
+                .iter()
+                .enumerate()
+                .map(|(i, item)| {
+                    let (content, style) = match item {
+                        HomeDisplayItem::Header(title) => (
+                            title.clone(),
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+                        ),
+                        HomeDisplayItem::Library(lib) => (
+                            format_item(lib),
+                            if i == app.selected_index {
+                                Style::default()
+                                    .fg(Color::Black)
+                                    .bg(Color::Cyan)
+                                    .add_modifier(Modifier::BOLD)
+                            } else {
+                                Style::default()
+                            },
+                        ),
+                        HomeDisplayItem::Item(media) => (
+                            format_item(media),
+                            if i == app.selected_index {
+                                Style::default()
+                                    .fg(Color::Black)
+                                    .bg(Color::Cyan)
+                                    .add_modifier(Modifier::BOLD)
+                            } else {
+                                Style::default()
+                            },
+                        ),
+                    };
+                    ListItem::new(content).style(style)
+                })
+                .collect(),
+            Screen::Library => app
+                .items
+                .iter()
+                .enumerate()
+                .map(|(i, item)| {
+                    let content = format_item(item);
+                    let style = if i == app.selected_index {
+                        Style::default()
+                            .fg(Color::Black)
+                            .bg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                    };
+                    ListItem::new(content).style(style)
+                })
+                .collect(),
             Screen::Login | Screen::Search => vec![],
         };
-
-        let list_items: Vec<ListItem> = items
-            .iter()
-            .enumerate()
-            .map(|(i, item)| {
-                let content = format_item(item);
-                let style = if i == app.selected_index {
-                    Style::default()
-                        .fg(Color::Black)
-                        .bg(Color::Cyan)
-                        .add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default()
-                };
-                ListItem::new(content).style(style)
-            })
-            .collect();
 
         let list = List::new(list_items).block(block);
 
