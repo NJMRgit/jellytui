@@ -3,7 +3,11 @@ name = "jellytui"
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = ["crates/jellyfin-client"]
+
 [dependencies]
+jellyfin-client = { path = "crates/jellyfin-client" }
 ratatui = "0.29"
 crossterm = "0.28"
 tokio = { version = "1", features = ["full"] }

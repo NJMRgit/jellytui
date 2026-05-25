@@ -1,9 +1,14 @@
 use std::time::Instant;
 
-use crate::client::{JellyfinClient, MediaItem};
+use jellyfin_client::{ClientInfo, Error as JellyfinError, JellyfinClient, MediaItem};
+
 use crate::config::Config;
 use crate::download::{DownloadManager, DownloadStatus, DownloadTask};
 use crate::player::MpvPlayer;
+
+fn client_info() -> ClientInfo {
+    ClientInfo::new("jellytui", env!("CARGO_PKG_VERSION")).with_device_id("jellytui-rust")
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
@@ -103,6 +108,7 @@ impl App {
         let (screen, client) = if config.is_authenticated() {
             let client = JellyfinClient::with_token(
                 config.server_url.clone().unwrap(),
+                client_info(),
                 config.access_token.clone().unwrap(),
                 config.user_id.clone().unwrap(),
             );
@@ -162,9 +168,8 @@ impl App {
         }
     }
 
-    pub fn handle_unauthorized(&mut self, error: &anyhow::Error) -> bool {
-        let message = error.to_string();
-        if message.contains("401") || message.contains("Unauthorized") {
+    pub fn handle_unauthorized(&mut self, error: &JellyfinError) -> bool {
+        if matches!(error, JellyfinError::Unauthorized) {
             self.reset_to_login("Session expired. Please log in again.");
             true
         } else {
@@ -205,7 +210,7 @@ impl App {
         self.login_error = None;
         self.login_loading = true;
 
-        let mut client = JellyfinClient::new(self.server_url_input.clone());
+        let mut client = JellyfinClient::new(self.server_url_input.clone(), client_info());
 
         match client
             .authenticate(&self.username_input, &self.password_input)
@@ -213,8 +218,8 @@ impl App {
         {
             Ok(_) => {
                 self.config.server_url = Some(self.server_url_input.clone());
-                self.config.access_token = client.access_token.clone();
-                self.config.user_id = client.user_id.clone();
+                self.config.access_token = client.access_token().map(str::to_string);
+                self.config.user_id = client.user_id().map(str::to_string);
                 self.config.save()?;
 
                 self.client = Some(client);
@@ -226,7 +231,7 @@ impl App {
             Err(e) => {
                 self.login_error = Some(e.to_string());
                 self.login_loading = false;
-                Err(e)
+                Err(e.into())
             }
         }
     }

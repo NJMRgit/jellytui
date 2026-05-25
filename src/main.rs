@@ -1,5 +1,4 @@
 mod app;
-mod client;
 mod config;
 mod download;
 mod events;
@@ -21,7 +20,7 @@ use ratatui::{Terminal, backend::CrosstermBackend};
 use tokio::sync::mpsc;
 
 use crate::app::{App, PlayingItem, Screen};
-use crate::client::{PlaybackProgressInfo, PlaybackStartInfo, PlaybackStopInfo};
+use jellyfin_client::{PlaybackProgressInfo, PlaybackStartInfo, PlaybackStopInfo};
 use crate::config::Config;
 use crate::download::{DownloadEvent, perform_download};
 use crate::events::{Event, EventHandler};
@@ -268,7 +267,19 @@ async fn start_playback(
         None => return,
     };
 
-    if let Err(e) = app.player.start(&stream_url, Some(start_position_secs)) {
+    let external_sub_urls: Vec<String> = match &app.client {
+        Some(client) => client
+            .get_external_subtitles(&playing_item.item.id)
+            .await
+            .map(|subs| subs.into_iter().map(|s| s.url).collect())
+            .unwrap_or_default(),
+        None => Vec::new(),
+    };
+
+    if let Err(e) = app
+        .player
+        .start(&stream_url, Some(start_position_secs), &external_sub_urls)
+    {
         app.error_message = Some(format!(
             "Failed to start player: {}. MPV log: {}",
             e,

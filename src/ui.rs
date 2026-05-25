@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::app::{App, HomeDisplayItem, LoginField, Screen};
-use crate::client::MediaItem;
+use jellyfin_client::MediaItem;
 use crate::download::DownloadStatus;
 
 pub fn render(frame: &mut Frame, app: &App) {
