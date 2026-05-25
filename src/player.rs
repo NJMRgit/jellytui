@@ -62,7 +62,12 @@ impl MpvPlayer {
         &self.log_path
     }
 
-    pub fn start(&mut self, url: &str, start_position_secs: Option<f64>) -> Result<()> {
+    pub fn start(
+        &mut self,
+        url: &str,
+        start_position_secs: Option<f64>,
+        external_sub_urls: &[String],
+    ) -> Result<()> {
         self.stop();
         self.socket_path = Self::new_socket_path();
 
@@ -101,6 +106,11 @@ impl MpvPlayer {
 
         if std::env::var("WAYLAND_DISPLAY").is_ok() {
             cmd.arg("--gpu-context=waylandvk");
+        }
+
+        for sub_url in external_sub_urls {
+            let _ = writeln!(log_file, "external_sub={sub_url}");
+            cmd.arg(format!("--sub-file={}", sub_url));
         }
 
         cmd.arg(url)
