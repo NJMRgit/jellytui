@@ -2,7 +2,7 @@
 
 A terminal UI client for [Jellyfin](https://jellyfin.org/) written in Rust.
 
-<img width="2560" height="1440" alt="image" src="https://github.com/user-attachments/assets/13542204-4071-4562-a905-8fa6c73f0f19" />
+<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/13542204-4071-4562-a905-8fa6c73f0f19" />
 
 
 ## Features
@@ -19,11 +19,11 @@ A terminal UI client for [Jellyfin](https://jellyfin.org/) written in Rust.
   - Auto-marks as played at 90%
 - Fallback Image Rendering
 
-<img width="1287" height="992" alt="image" src="https://github.com/user-attachments/assets/21e4529e-3148-408b-aca6-b4e92cf941b1" />
+<img width="643" height="496" alt="image" src="https://github.com/user-attachments/assets/21e4529e-3148-408b-aca6-b4e92cf941b1" />
 
 - compact mode
 
-<img width="537" height="733" alt="image" src="https://github.com/user-attachments/assets/90d0d74d-df14-49f6-9603-481b18d5b68b" />
+<img width="248" height="366" alt="image" src="https://github.com/user-attachments/assets/90d0d74d-df14-49f6-9603-481b18d5b68b" />
 
 
 
