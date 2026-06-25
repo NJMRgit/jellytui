@@ -33,6 +33,24 @@ fn user_scripts() -> Vec<PathBuf> {
     scripts
 }
 
+fn svp_manager_running() -> bool {
+    let proc = Path::new("/proc");
+    let Ok(entries) = std::fs::read_dir(proc) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let comm = entry.path().join("comm");
+        if let Ok(name) = std::fs::read_to_string(&comm) {
+            if name.trim() == "SVPManager" {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+const SVP_SOCKET_PATH: &str = "/tmp/mpvsocket";
+
 const MPV_STARTUP_DELAY: Duration = Duration::from_millis(500);
 const MPV_CONNECT_DELAY: Duration = Duration::from_millis(1000);
 const MPV_SOCKET_WAIT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -93,7 +111,14 @@ impl MpvPlayer {
         external_sub_urls: &[String],
     ) -> Result<()> {
         self.stop();
-        self.socket_path = Self::new_socket_path();
+
+        let svp = svp_manager_running();
+
+        self.socket_path = if svp {
+            PathBuf::from(SVP_SOCKET_PATH)
+        } else {
+            Self::new_socket_path()
+        };
 
         if self.socket_path.exists() {
             let _ = std::fs::remove_file(&self.socket_path);
@@ -118,6 +143,7 @@ impl MpvPlayer {
             start_position_secs.unwrap_or(0.0)
         );
         let _ = writeln!(log_file, "socket={}", self.socket_path.display());
+        let _ = writeln!(log_file, "svp_detected={svp}");
         let _ = writeln!(log_file, "---");
 
         let stdout_log = log_file.try_clone()?;
@@ -207,6 +233,9 @@ impl MpvPlayer {
     }
 
     fn new_socket_path() -> PathBuf {
+        if let Ok(path) = std::env::var("JELLYTUI_MPV_SOCKET") {
+            return PathBuf::from(path);
+        }
         std::env::temp_dir().join(format!(
             "jellytui-mpv-{}-{}.sock",
             std::process::id(),
