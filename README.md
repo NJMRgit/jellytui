@@ -21,6 +21,11 @@ A terminal UI client for [Jellyfin](https://jellyfin.org/) written in Rust.
 
 <img width="1287" height="992" alt="image" src="https://github.com/user-attachments/assets/21e4529e-3148-408b-aca6-b4e92cf941b1" />
 
+- compact mode
+
+<img width="537" height="733" alt="image" src="https://github.com/user-attachments/assets/90d0d74d-df14-49f6-9603-481b18d5b68b" />
+
+
 
 
 ## Requirements
