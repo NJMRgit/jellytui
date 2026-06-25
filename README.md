@@ -4,14 +4,24 @@ A terminal UI client for [Jellyfin](https://jellyfin.org/) written in Rust.
 
 <img width="2560" height="1440" alt="image" src="https://github.com/user-attachments/assets/13542204-4071-4562-a905-8fa6c73f0f19" />
 
+
 ## Features
 
 - Browse libraries and navigate folders
 - Search across all media
-- Play with MPV (with playback sync)
+- Play with MPV 
 - Resume from last position
 - Download media files
 - Sidebar with selection information and poster/preview
+- Playback Sync:
+  - Resume from where you left off
+  - Progress reported every 5 seconds
+  - Auto-marks as played at 90%
+- Fallback Image Rendering
+
+<img width="1287" height="992" alt="image" src="https://github.com/user-attachments/assets/21e4529e-3148-408b-aca6-b4e92cf941b1" />
+
+
 
 ## Requirements
 
@@ -39,6 +49,9 @@ jellytui
 ```
 
 On first run, enter your Jellyfin server URL and credentials. Config is saved to `~/.config/jellytui/config.toml`.
+### Downloads
+
+Files are saved to `~/Downloads/jellytui/`.
 
 ### Keybindings
 
@@ -54,16 +67,9 @@ On first run, enter your Jellyfin server URL and credentials. Config is saved to
 | `r` | Refresh |
 | `q` | Quit |
 
-### Downloads
+## Disclaimer
 
-Files are saved to `~/Downloads/jellytui/`.
-
-## Playback Sync
-
-Playback position is synced to Jellyfin:
-- Resume from where you left off
-- Progress reported every 5 seconds
-- Auto-marks as played at 90%
+I used opencode/pi for this
 
 ## License
 
