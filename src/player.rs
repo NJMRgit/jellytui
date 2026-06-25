@@ -9,6 +9,30 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, timeout};
 use uuid::Uuid;
 
+fn user_scripts() -> Vec<PathBuf> {
+    let scripts_dir = ProjectDirs::from("", "", "mpv")
+        .map(|d| d.config_dir().join("scripts"))
+        .unwrap_or_else(|| {
+            dirs::config_dir()
+                .unwrap_or_else(|| PathBuf::from("~/.config"))
+                .join("mpv")
+                .join("scripts")
+        });
+
+    let mut scripts = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&scripts_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "lua")
+                && path.file_stem().is_some_and(|n| n != "mpvSockets")
+            {
+                scripts.push(path);
+            }
+        }
+    }
+    scripts
+}
+
 const MPV_STARTUP_DELAY: Duration = Duration::from_millis(500);
 const MPV_CONNECT_DELAY: Duration = Duration::from_millis(1000);
 const MPV_SOCKET_WAIT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -104,6 +128,10 @@ impl MpvPlayer {
             .arg("--load-scripts=no")
             .arg("--force-window=yes")
             .arg("--terminal=no");
+
+        for script in user_scripts() {
+            cmd.arg(format!("--script={}", script.display()));
+        }
 
         if std::env::var("WAYLAND_DISPLAY").is_ok() {
             cmd.arg("--gpu-context=waylandvk");
