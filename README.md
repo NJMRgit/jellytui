@@ -13,6 +13,7 @@ A terminal UI client for [Jellyfin](https://jellyfin.org/) written in Rust.
 - Resume from last position
 - Download media files
 - Sidebar with selection information and poster/preview
+- SVP (smooth Video Project) Support
 - Playback Sync:
   - Resume from where you left off
   - Progress reported every 5 seconds
