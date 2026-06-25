@@ -28,10 +28,21 @@
 use std::time::Duration;
 
 use reqwest::{Client, Response, StatusCode};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 mod error;
 pub use error::{Error, Result};
+
+/// Deserialize a u64, clamping negative values to 0 (Jellyfin sometimes
+/// returns negative sentinel values for tick fields).
+fn de_u64<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<u64, D::Error> {
+    i64::deserialize(d).map(|v| v.max(0) as u64)
+}
+
+/// Deserialize an optional u64, clamping negative values to 0.
+fn de_u64_opt<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Option<u64>, D::Error> {
+    Option::<i64>::deserialize(d).map(|opt| opt.map(|v| v.max(0) as u64))
+}
 
 /// Identifies the client application to the Jellyfin server.
 ///
@@ -96,7 +107,9 @@ pub struct User {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct MediaItem {
+    #[serde(default)]
     pub id: String,
+    #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub r#type: String,
@@ -112,16 +125,38 @@ pub struct MediaItem {
     pub parent_index_number: Option<u32>,
     #[serde(default)]
     pub is_folder: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_u64_opt")]
     pub run_time_ticks: Option<u64>,
     #[serde(default)]
     pub user_data: Option<UserData>,
+    #[serde(default)]
+    pub primary_image_aspect_ratio: Option<f64>,
+    #[serde(default)]
+    pub overview: Option<String>,
+    #[serde(default)]
+    pub official_rating: Option<String>,
+    #[serde(default)]
+    pub original_title: Option<String>,
+    #[serde(default)]
+    pub community_rating: Option<f64>,
+    #[serde(default)]
+    pub genres: Vec<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub studios: Vec<StudioInfo>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct StudioInfo {
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct UserData {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_u64")]
     pub playback_position_ticks: u64,
     #[serde(default)]
     pub played: bool,
@@ -130,7 +165,9 @@ pub struct UserData {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ItemsResponse {
+    #[serde(default)]
     pub items: Vec<MediaItem>,
+    #[serde(default)]
     pub total_record_count: u32,
 }
 
@@ -281,7 +318,7 @@ impl JellyfinClient {
         self.access_token.as_deref().ok_or(Error::Unauthenticated)
     }
 
-    fn auth_header(&self) -> String {
+    pub fn auth_header(&self) -> String {
         let mut header = format!(
             "MediaBrowser Client=\"{}\", Device=\"{}\", DeviceId=\"{}\", Version=\"{}\"",
             self.info.name, self.info.device, self.info.device_id, self.info.version
@@ -349,6 +386,7 @@ impl JellyfinClient {
                 ("Limit", &limit.to_string()),
                 ("SortBy", "SortName"),
                 ("SortOrder", "Ascending"),
+                ("Fields", "Overview,Genres,Studios,Taglines,CommunityRating,OfficialRating,Tags,OriginalTitle,ProductionYear"),
             ])
             .header("X-Emby-Authorization", self.auth_header())
             .send()
@@ -368,12 +406,7 @@ impl JellyfinClient {
             .query(&[
                 ("Limit", &limit.to_string()[..]),
                 ("Recursive", "true"),
-                (
-                    "Fields",
-                    "PrimaryImageAspectRatio,BasicSyncInfo,ProductionYear,Status,EndDate",
-                ),
-                ("ImageTypeLimit", "1"),
-                ("EnableImageTypes", "Primary,Backdrop,Banner,Thumb"),
+                ("Fields", "PrimaryImageAspectRatio,BasicSyncInfo,ProductionYear,Status,EndDate,Overview,Genres,Studios,Taglines,CommunityRating,OfficialRating,Tags,OriginalTitle"),
             ])
             .header("X-Emby-Authorization", self.auth_header())
             .send()
@@ -395,7 +428,7 @@ impl JellyfinClient {
                 ("Limit", &limit.to_string()),
                 (
                     "Fields",
-                    "PrimaryImageAspectRatio,SeriesInfo,DateCreated,BasicSyncInfo,MediaSourceCount",
+                    "PrimaryImageAspectRatio,SeriesInfo,DateCreated,BasicSyncInfo,MediaSourceCount,Overview,Genres,Studios,Taglines,CommunityRating,OfficialRating,Tags,OriginalTitle",
                 ),
                 ("ImageTypeLimit", "1"),
                 ("EnableImageTypes", "Primary,Backdrop,Banner,Thumb"),
@@ -424,7 +457,7 @@ impl JellyfinClient {
                 ("Limit", &limit.to_string()),
                 (
                     "Fields",
-                    "PrimaryImageAspectRatio,ProductionYear,Status,EndDate",
+                    "PrimaryImageAspectRatio,ProductionYear,Status,EndDate,Overview,Genres,Studios,Taglines,CommunityRating,OfficialRating,Tags,OriginalTitle",
                 ),
                 ("ImageTypeLimit", "1"),
                 ("EnableImageTypes", "Primary,Backdrop,Banner,Thumb"),
@@ -586,7 +619,8 @@ impl JellyfinClient {
         );
         let response = self
             .http
-            .post(&url)
+            .get(&url)
+            .query(&[("Fields", "Overview,Genres,Studios,Taglines,CommunityRating,OfficialRating,Tags,OriginalTitle,ProductionYear")])
             .header("X-Emby-Authorization", self.auth_header())
             .send()
             .await?;
@@ -606,6 +640,7 @@ impl JellyfinClient {
                 ("searchTerm", query),
                 ("Recursive", "true"),
                 ("Limit", &limit.to_string()),
+                ("Fields", "Overview,Genres,Studios,Taglines,CommunityRating,OfficialRating,Tags,OriginalTitle,ProductionYear"),
             ])
             .header("X-Emby-Authorization", self.auth_header())
             .send()

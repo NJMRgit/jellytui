@@ -87,7 +87,6 @@ pub struct App {
 
     pub items: Vec<MediaItem>,
     pub selected_index: usize,
-    pub grid_columns: usize,
     pub nav_stack: Vec<NavEntry>,
     pub loading: bool,
     pub error_message: Option<String>,
@@ -145,7 +144,6 @@ impl App {
             home_col: 0,
             items: Vec::new(),
             selected_index: 0,
-            grid_columns: 1,
             nav_stack: Vec::new(),
             loading: false,
             error_message: None,
@@ -260,10 +258,10 @@ impl App {
 
         if self.client.is_some() {
             // Libraries
-            match {
+            let res = {
                 let client = self.client.as_ref().unwrap();
                 client.get_user_views().await
-            } {
+            }; match res {
                 Ok(libs) => {
                     if !libs.is_empty() {
                         self.home_sections.push(HomeSection {
@@ -278,15 +276,15 @@ impl App {
                         self.loading = false;
                         return Ok(());
                     }
-                    self.error_message = Some(e.to_string());
+                    self.error_message = Some(format!("get_user_views: {e}"));
                 }
             }
 
             // Continue Watching
-            match {
+            let res = {
                 let client = self.client.as_ref().unwrap();
                 client.get_resume_items(10).await
-            } {
+            }; match res {
                 Ok(resp) => {
                     if !resp.items.is_empty() {
                         self.home_sections.push(HomeSection {
@@ -302,16 +300,16 @@ impl App {
                         return Ok(());
                     }
                     if self.error_message.is_none() {
-                        self.error_message = Some(e.to_string());
+                        self.error_message = Some(format!("get_resume_items: {e}"));
                     }
                 }
             }
 
             // Next Up
-            match {
+            let res = {
                 let client = self.client.as_ref().unwrap();
                 client.get_next_up_items(10).await
-            } {
+            }; match res {
                 Ok(resp) => {
                     if !resp.items.is_empty() {
                         self.home_sections.push(HomeSection {
@@ -327,16 +325,16 @@ impl App {
                         return Ok(());
                     }
                     if self.error_message.is_none() {
-                        self.error_message = Some(e.to_string());
+                        self.error_message = Some(format!("get_next_up_items: {e}"));
                     }
                 }
             }
 
             // Recently in Movies
-            match {
+            let res = {
                 let client = self.client.as_ref().unwrap();
                 client.get_latest_items(&["Movie"], 10).await
-            } {
+            }; match res {
                 Ok(resp) => {
                     if !resp.items.is_empty() {
                         self.home_sections.push(HomeSection {
@@ -352,16 +350,16 @@ impl App {
                         return Ok(());
                     }
                     if self.error_message.is_none() {
-                        self.error_message = Some(e.to_string());
+                        self.error_message = Some(format!("get_latest_items(Movie): {e}"));
                     }
                 }
             }
 
             // Recently in TV Shows
-            match {
+            let res = {
                 let client = self.client.as_ref().unwrap();
                 client.get_latest_items(&["Series"], 10).await
-            } {
+            }; match res {
                 Ok(resp) => {
                     if !resp.items.is_empty() {
                         self.home_sections.push(HomeSection {
@@ -377,7 +375,7 @@ impl App {
                         return Ok(());
                     }
                     if self.error_message.is_none() {
-                        self.error_message = Some(e.to_string());
+                        self.error_message = Some(format!("get_latest_items(Series): {e}"));
                     }
                 }
             }
@@ -421,79 +419,16 @@ impl App {
     pub fn move_up(&mut self) {
         match self.screen {
             Screen::Home => {
-                if self.home_row > 0 {
+                if self.home_col > 0 {
+                    self.home_col -= 1;
+                } else if self.home_row > 0 {
                     self.home_row -= 1;
                     let len = self
                         .home_sections
                         .get(self.home_row)
                         .map(|s| s.items.len())
                         .unwrap_or(0);
-                    if len > 0 && self.home_col >= len {
-                        self.home_col = len - 1;
-                    }
-                }
-            }
-            Screen::Library => {
-                let cols = self.grid_columns.max(1);
-                if self.selected_index >= cols {
-                    self.selected_index -= cols;
-                }
-            }
-            Screen::Search => {
-                let cols = self.grid_columns.max(1);
-                if self.search_selected >= cols {
-                    self.search_selected -= cols;
-                }
-            }
-            Screen::Login => {}
-        }
-    }
-
-    pub fn move_down(&mut self) {
-        match self.screen {
-            Screen::Home => {
-                if self.home_row + 1 < self.home_sections.len() {
-                    self.home_row += 1;
-                    let len = self
-                        .home_sections
-                        .get(self.home_row)
-                        .map(|s| s.items.len())
-                        .unwrap_or(0);
-                    if len > 0 && self.home_col >= len {
-                        self.home_col = len - 1;
-                    }
-                }
-            }
-            Screen::Library => {
-                let cols = self.grid_columns.max(1);
-                let len = self.items.len();
-                let new_index = self.selected_index + cols;
-                if new_index < len {
-                    self.selected_index = new_index;
-                } else if len > 0 {
-                    // snap to last item on the last row
-                    self.selected_index = len - 1;
-                }
-            }
-            Screen::Search => {
-                let cols = self.grid_columns.max(1);
-                let len = self.search_results.len();
-                let new_index = self.search_selected + cols;
-                if new_index < len {
-                    self.search_selected = new_index;
-                } else if len > 0 {
-                    self.search_selected = len - 1;
-                }
-            }
-            Screen::Login => {}
-        }
-    }
-
-    pub fn move_left(&mut self) {
-        match self.screen {
-            Screen::Home => {
-                if self.home_col > 0 {
-                    self.home_col -= 1;
+                    self.home_col = len.saturating_sub(1);
                 }
             }
             Screen::Library => {
@@ -510,7 +445,7 @@ impl App {
         }
     }
 
-    pub fn move_right(&mut self) {
+    pub fn move_down(&mut self) {
         match self.screen {
             Screen::Home => {
                 let len = self
@@ -518,8 +453,14 @@ impl App {
                     .get(self.home_row)
                     .map(|s| s.items.len())
                     .unwrap_or(0);
-                if len > 0 && self.home_col + 1 < len {
+                if len == 0 {
+                    return;
+                }
+                if self.home_col + 1 < len {
                     self.home_col += 1;
+                } else if self.home_row + 1 < self.home_sections.len() {
+                    self.home_row += 1;
+                    self.home_col = 0;
                 }
             }
             Screen::Library => {
@@ -536,141 +477,163 @@ impl App {
         }
     }
 
-    pub async fn select_item(&mut self) -> anyhow::Result<Option<PlayingItem>> {
+    pub fn move_left(&mut self) {
         match self.screen {
             Screen::Home => {
-                let (kind, item) = match self.home_sections.get(self.home_row) {
-                    Some(section) => match section.items.get(self.home_col) {
-                        Some(item) => (section.kind, item.clone()),
-                        None => return Ok(None),
-                    },
-                    None => return Ok(None),
-                };
-
-                match kind {
-                    HomeSectionKind::Libraries => {
-                        let lib_id = item.id.clone();
-                        let lib_name = item.name.clone();
-                        self.nav_stack.push(NavEntry {
-                            parent_id: lib_id.clone(),
-                            title: lib_name,
-                        });
-                        self.screen = Screen::Library;
-                        self.load_items(&lib_id).await?;
-                        Ok(None)
-                    }
-                    HomeSectionKind::Items => {
-                        if item.is_folder {
-                            let item_id = item.id.clone();
-                            let item_name = item.name.clone();
-                            self.nav_stack.push(NavEntry {
-                                parent_id: item_id.clone(),
-                                title: item_name,
-                            });
-                            self.screen = Screen::Library;
-                            self.load_items(&item_id).await?;
-                            Ok(None)
-                        } else {
-                            let full_item = if let Some(ref client) = self.client {
-                                client.get_item(&item.id).await.unwrap_or(item)
-                            } else {
-                                item
-                            };
-                            let start_position_ticks = full_item
-                                .user_data
-                                .as_ref()
-                                .map(|ud| ud.playback_position_ticks)
-                                .unwrap_or(0);
-                            Ok(Some(PlayingItem {
-                                item: full_item,
-                                start_position_ticks,
-                            }))
-                        }
+                if self.home_row > 0 {
+                    self.home_row -= 1;
+                    let len = self
+                        .home_sections
+                        .get(self.home_row)
+                        .map(|s| s.items.len())
+                        .unwrap_or(0);
+                    if len > 0 && self.home_col >= len {
+                        self.home_col = len - 1;
                     }
                 }
             }
             Screen::Library => {
-                if let Some(item) = self.items.get(self.selected_index).cloned() {
-                    if item.is_folder {
-                        let item_id = item.id.clone();
-                        let item_name = item.name.clone();
-                        self.nav_stack.push(NavEntry {
-                            parent_id: item_id.clone(),
-                            title: item_name,
-                        });
-                        self.load_items(&item_id).await?;
-                        Ok(None)
-                    } else {
-                        let full_item = if let Some(ref client) = self.client {
-                            match client.get_item(&item.id).await {
-                                Ok(full_item) => full_item,
-                                Err(e) => {
-                                    if self.handle_unauthorized(&e) {
-                                        return Ok(None);
-                                    }
-                                    item
-                                }
-                            }
-                        } else {
-                            item
-                        };
-
-                        let start_position_ticks = full_item
-                            .user_data
-                            .as_ref()
-                            .map(|ud| ud.playback_position_ticks)
-                            .unwrap_or(0);
-
-                        Ok(Some(PlayingItem {
-                            item: full_item,
-                            start_position_ticks,
-                        }))
-                    }
-                } else {
-                    Ok(None)
+                if self.selected_index > 0 {
+                    self.selected_index -= 1;
                 }
             }
             Screen::Search => {
-                if let Some(item) = self.search_results.get(self.search_selected).cloned() {
-                    if item.is_folder {
-                        let item_id = item.id.clone();
-                        let item_name = item.name.clone();
-                        self.nav_stack.clear();
-                        self.nav_stack.push(NavEntry {
-                            parent_id: item_id.clone(),
-                            title: item_name,
-                        });
-                        self.screen = Screen::Library;
-                        self.load_items(&item_id).await?;
-                        Ok(None)
-                    } else {
-                        let full_item = if let Some(ref client) = self.client {
-                            match client.get_item(&item.id).await {
-                                Ok(full_item) => full_item,
-                                Err(e) => {
-                                    if self.handle_unauthorized(&e) {
-                                        return Ok(None);
-                                    }
-                                    item
-                                }
-                            }
-                        } else {
-                            item
-                        };
+                if self.search_selected > 0 {
+                    self.search_selected -= 1;
+                }
+            }
+            Screen::Login => {}
+        }
+    }
 
-                        let start_position_ticks = full_item
-                            .user_data
-                            .as_ref()
-                            .map(|ud| ud.playback_position_ticks)
-                            .unwrap_or(0);
+    pub async fn select_item(&mut self) -> anyhow::Result<Option<PlayingItem>> {
+        match self.screen {
+            Screen::Home => {
+                let section = match self.home_sections.get(self.home_row) {
+                    Some(s) => s,
+                    None => return Ok(None),
+                };
+                let item_ref = match section.items.get(self.home_col) {
+                    Some(i) => i,
+                    None => return Ok(None),
+                };
 
-                        Ok(Some(PlayingItem {
-                            item: full_item,
-                            start_position_ticks,
-                        }))
-                    }
-                } else {
+                let is_libs = matches!(section.kind, HomeSectionKind::Libraries);
+                let item_id = item_ref.id.clone();
+                let item_name = item_ref.name.clone();
+                if is_libs || item_ref.is_folder {
+                    let load_id = item_id.clone();
+                    self.nav_stack.push(NavEntry {
+                        parent_id: item_id,
+                        title: item_name,
+                    });
+                    self.screen = Screen::Library;
+                    self.load_items(&load_id).await?;
                     Ok(None)
+                } else {
+                    let item = item_ref.clone();
+                    let full_item = if let Some(ref client) = self.client {
+                        client.get_item(&item.id).await.unwrap_or(item)
+                    } else {
+                        item
+                    };
+                    let start_position_ticks = full_item
+                        .user_data
+                        .as_ref()
+                        .map(|ud| ud.playback_position_ticks)
+                        .unwrap_or(0);
+                    Ok(Some(PlayingItem {
+                        item: full_item,
+                        start_position_ticks,
+                    }))
+                }
+            }
+            Screen::Library => {
+                let item_ref = match self.items.get(self.selected_index) {
+                    Some(item) => item,
+                    None => return Ok(None),
+                };
+                let item_id = item_ref.id.clone();
+                let item_name = item_ref.name.clone();
+                if item_ref.is_folder {
+                    let load_id = item_id.clone();
+                    self.nav_stack.push(NavEntry {
+                        parent_id: item_id,
+                        title: item_name,
+                    });
+                    self.load_items(&load_id).await?;
+                    Ok(None)
+                } else {
+                    let item = item_ref.clone();
+                    let full_item = if let Some(ref client) = self.client {
+                        match client.get_item(&item.id).await {
+                            Ok(full_item) => full_item,
+                            Err(e) => {
+                                if self.handle_unauthorized(&e) {
+                                    return Ok(None);
+                                }
+                                item
+                            }
+                        }
+                    } else {
+                        item
+                    };
+
+                    let start_position_ticks = full_item
+                        .user_data
+                        .as_ref()
+                        .map(|ud| ud.playback_position_ticks)
+                        .unwrap_or(0);
+
+                    Ok(Some(PlayingItem {
+                        item: full_item,
+                        start_position_ticks,
+                    }))
+                }
+            }
+            Screen::Search => {
+                let item_ref = match self.search_results.get(self.search_selected) {
+                    Some(item) => item,
+                    None => return Ok(None),
+                };
+                let item_id = item_ref.id.clone();
+                let item_name = item_ref.name.clone();
+                if item_ref.is_folder {
+                    let load_id = item_id.clone();
+                    self.nav_stack.clear();
+                    self.nav_stack.push(NavEntry {
+                        parent_id: item_id,
+                        title: item_name,
+                    });
+                    self.screen = Screen::Library;
+                    self.load_items(&load_id).await?;
+                    Ok(None)
+                } else {
+                    let item = item_ref.clone();
+                    let full_item = if let Some(ref client) = self.client {
+                        match client.get_item(&item.id).await {
+                            Ok(full_item) => full_item,
+                            Err(e) => {
+                                if self.handle_unauthorized(&e) {
+                                    return Ok(None);
+                                }
+                                item
+                            }
+                        }
+                    } else {
+                        item
+                    };
+
+                    let start_position_ticks = full_item
+                        .user_data
+                        .as_ref()
+                        .map(|ud| ud.playback_position_ticks)
+                        .unwrap_or(0);
+
+                    Ok(Some(PlayingItem {
+                        item: full_item,
+                        start_position_ticks,
+                    }))
                 }
             }
             Screen::Login => Ok(None),

@@ -2,8 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
 use image::DynamicImage;
-use ratatui_image::picker::Picker;
-use ratatui_image::protocol::StatefulProtocol;
+use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
 use tokio::sync::mpsc;
 
 pub struct ImageFetched {
@@ -17,31 +16,29 @@ enum Entry {
 }
 
 pub struct ImageManager {
-    picker: Picker,
     cache: HashMap<String, Entry>,
     pending: HashSet<String>,
     tx: mpsc::UnboundedSender<ImageFetched>,
+    picker: Picker,
 }
 
 impl ImageManager {
-    pub fn new(tx: mpsc::UnboundedSender<ImageFetched>) -> Result<Self> {
-        let picker = Picker::from_query_stdio()?;
-        Ok(Self {
-            picker,
+    pub fn new(tx: mpsc::UnboundedSender<ImageFetched>, picker: Picker) -> Self {
+        Self {
             cache: HashMap::new(),
             pending: HashSet::new(),
             tx,
-        })
+            picker,
+        }
     }
 
-    /// Kick off a fetch if not already cached or in flight.
     pub fn ensure(&mut self, item_id: &str, url: String) {
         if self.cache.contains_key(item_id) || self.pending.contains(item_id) {
             return;
         }
-        self.pending.insert(item_id.to_string());
-        let tx = self.tx.clone();
         let id = item_id.to_string();
+        self.pending.insert(id.clone());
+        let tx = self.tx.clone();
         tokio::spawn(async move {
             let img = fetch_image(&url).await.ok();
             let _ = tx.send(ImageFetched {
@@ -60,9 +57,9 @@ impl ImageManager {
         self.cache.insert(fetched.item_id, entry);
     }
 
-    pub fn get_mut(&mut self, item_id: &str) -> Option<&mut StatefulProtocol> {
+    pub fn get_protocol(&mut self, item_id: &str) -> Option<&mut StatefulProtocol> {
         match self.cache.get_mut(item_id) {
-            Some(Entry::Loaded(p)) => Some(p),
+            Some(Entry::Loaded(protocol)) => Some(protocol),
             _ => None,
         }
     }

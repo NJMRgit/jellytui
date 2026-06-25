@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -101,6 +101,7 @@ impl MpvPlayer {
 
         let mut cmd = Command::new("mpv");
         cmd.arg(format!("--input-ipc-server={}", self.socket_path.display()))
+            .arg("--load-scripts=no")
             .arg("--force-window=yes")
             .arg("--terminal=no");
 
@@ -277,7 +278,7 @@ pub async fn monitor_playback(
     }
 }
 
-async fn wait_for_socket(socket_path: &PathBuf) -> Result<(), String> {
+async fn wait_for_socket(socket_path: &Path) -> Result<(), String> {
     let deadline = Instant::now() + MPV_SOCKET_WAIT_TIMEOUT;
 
     while Instant::now() < deadline {

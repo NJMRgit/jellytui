@@ -27,6 +27,7 @@ use crate::events::{Event, EventHandler};
 use crate::images::{ImageFetched, ImageManager};
 use crate::player::{PlayerEvent, monitor_playback};
 use jellyfin_client::{PlaybackProgressInfo, PlaybackStartInfo, PlaybackStopInfo};
+use ratatui_image::picker::Picker;
 
 const TICKS_PER_SECOND: u64 = 10_000_000;
 
@@ -34,20 +35,17 @@ const TICKS_PER_SECOND: u64 = 10_000_000;
 async fn main() -> Result<()> {
     let config = Config::load().unwrap_or_default();
 
+    let picker = if std::env::var("KONSOLE_VERSION").is_ok() {
+        Picker::from_fontsize((8, 16))
+    } else {
+        Picker::from_query_stdio()
+            .unwrap_or_else(|_| Picker::from_fontsize((8, 16)))
+    };
+
     enable_raw_mode()?;
 
     let (image_tx, image_rx) = mpsc::unbounded_channel::<ImageFetched>();
-    let mut images = match ImageManager::new(image_tx) {
-        Ok(m) => m,
-        Err(e) => {
-            disable_raw_mode().ok();
-            eprintln!("Failed to initialize image renderer: {e}");
-            eprintln!(
-                "Your terminal may not support a graphics protocol. Try Kitty, Ghostty, WezTerm, or a Sixel-capable terminal."
-            );
-            return Ok(());
-        }
-    };
+    let mut images = ImageManager::new(image_tx, picker);
 
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -185,29 +183,40 @@ async fn handle_browser_input(
             app.move_down();
         }
         KeyCode::Left | KeyCode::Char('h') => {
-            app.move_left();
+            if app.screen == Screen::Library {
+                let _ = app.go_back().await;
+            } else {
+                app.move_left();
+            }
         }
         KeyCode::Right | KeyCode::Char('l') => {
-            app.move_right();
+            if let Ok(result) = app.select_item().await
+                && let Some(playing_item) = result {
+                    start_playback(app, playing_item, player_tx).await;
+                }
         }
         KeyCode::Enter => {
-            if let Ok(Some(playing_item)) = app.select_item().await {
-                start_playback(app, playing_item, player_tx).await;
-            }
+            if let Ok(result) = app.select_item().await
+                && let Some(playing_item) = result {
+                    start_playback(app, playing_item, player_tx).await;
+                }
         }
         KeyCode::Esc | KeyCode::Backspace => {
             if app.screen == Screen::Library {
                 let _ = app.go_back().await;
+
             }
         }
         KeyCode::Char('r') => match app.screen {
             Screen::Home => {
                 let _ = app.load_home_content().await;
+
             }
             Screen::Library => {
                 if let Some(entry) = app.nav_stack.last() {
                     let parent_id = entry.parent_id.clone();
                     let _ = app.load_items(&parent_id).await;
+    
                 }
             }
             Screen::Login | Screen::Search => {}
@@ -251,10 +260,14 @@ async fn handle_search_input(
             app.move_down();
         }
         KeyCode::Left => {
-            app.move_left();
+            app.close_search();
         }
         KeyCode::Right => {
-            app.move_right();
+            if !app.search_results.is_empty()
+                && let Ok(Some(playing_item)) = app.select_item().await
+            {
+                start_playback(app, playing_item, player_tx).await;
+            }
         }
         KeyCode::Enter => {
             if !app.search_results.is_empty()
@@ -374,27 +387,27 @@ async fn handle_player_event(app: &mut App, event: PlayerEvent) {
                 .unwrap_or(true);
 
             if should_report {
-                if let (Some(playing), Some(client)) = (app.now_playing.clone(), app.client.clone())
-                {
-                    app.last_progress_report = Some(Instant::now());
-
-                    let progress_info = PlaybackProgressInfo {
-                        item_id: playing.item.id.clone(),
-                        position_ticks,
-                        is_paused: state.paused,
-                        is_muted: false,
-                        volume_level: 100,
-                    };
-
-                    tokio::spawn(async move {
-                        let _ = client.report_playback_progress(&progress_info).await;
-                    });
+                app.last_progress_report = Some(Instant::now());
+                if let Some(client) = app.client.clone() {
+                    let item_id = app.now_playing.as_ref().map(|p| p.item.id.clone());
+                    if let Some(item_id) = item_id {
+                        let progress_info = PlaybackProgressInfo {
+                            item_id,
+                            position_ticks,
+                            is_paused: state.paused,
+                            is_muted: false,
+                            volume_level: 100,
+                        };
+                        tokio::spawn(async move {
+                            let _ = client.report_playback_progress(&progress_info).await;
+                        });
+                    }
                 }
             }
 
-            if !app.marked_as_played {
-                if let Some(playing) = app.now_playing.as_ref() {
-                    if let Some(duration_ticks) = playing.item.run_time_ticks {
+            if !app.marked_as_played
+                && let Some(playing) = app.now_playing.as_ref()
+                    && let Some(duration_ticks) = playing.item.run_time_ticks {
                         let progress_percent =
                             position_ticks as f64 / duration_ticks as f64 * 100.0;
                         if progress_percent >= 90.0 {
@@ -407,8 +420,6 @@ async fn handle_player_event(app: &mut App, event: PlayerEvent) {
                             }
                         }
                     }
-                }
-            }
         }
         PlayerEvent::Finished { session_id } => {
             if session_id != app.playback_session_id {
@@ -424,12 +435,8 @@ async fn handle_player_event(app: &mut App, event: PlayerEvent) {
                 return;
             }
 
-            if app.player.is_running() {
-                return;
-            }
-
             app.error_message = Some(format!(
-                "Player error: {}. MPV log: {}",
+                "Player monitoring error: {}. MPV log: {}",
                 message,
                 app.player.log_path().display()
             ));
