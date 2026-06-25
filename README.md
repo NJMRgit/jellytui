@@ -9,8 +9,7 @@ A terminal UI client for [Jellyfin](https://jellyfin.org/) written in Rust.
 
 - Browse libraries and navigate folders
 - Search across all media
-- Play with MPV 
-- Resume from last position
+- uses MPV with user scripts
 - Download media files
 - Sidebar with selection information and poster/preview
 - SVP (smooth Video Project) Support
