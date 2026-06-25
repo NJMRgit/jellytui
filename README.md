@@ -75,7 +75,7 @@ Files are saved to `~/Downloads/jellytui/`.
 
 ## Disclaimer
 
-I used opencode/pi for this
+I used opencode/pi/zcode for this
 
 ## License
 
